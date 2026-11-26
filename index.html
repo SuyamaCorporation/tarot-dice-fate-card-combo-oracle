@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>タロット×ダイス コンボ オラクル</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+@keyframes shake {
+  0%,100%{transform:rotate(0)}
+  20%{transform:rotate(-15deg)}
+  40%{transform:rotate(15deg)}
+  60%{transform:rotate(-10deg)}
+  80%{transform:rotate(10deg)}
+}
+.shake { animation: shake 0.6s ease-in-out; }
+</style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4">
+<div class="max-w-lg mx-auto">
+  <h1 class="text-2xl font-bold text-purple-400 mb-2 text-center">🔮 タロット × ダイス オラクル</h1>
+  <p class="text-center text-gray-400 text-sm mb-5">d20 × 大アルカナ 22 枚のコンボリーディング</p>
+
+  <div class="bg-gray-800 rounded-xl p-5 mb-4">
+    <div class="mb-3">
+      <label class="text-sm text-gray-400 block mb-1">テーマを選択</label>
+      <select id="theme"
+        class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+        aria-label="テーマ選択">
+        <option value="energy">今日のエネルギー</option>
+        <option value="work">仕事・キャリア</option>
+        <option value="love">恋愛・人間関係</option>
+        <option value="challenge">課題・乗り越えるべき壁</option>
+      </select>
+    </div>
+    <button id="shakeBtn" onclick="doReading()"
+      class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl text-lg transition"
+      aria-label="シェイクしてリーディング">
+      🎲 シェイク！
+    </button>
+  </div>
+
+  <div id="resultCard" class="hidden bg-gray-800 rounded-xl p-5 mb-4 border border-purple-700">
+    <div class="flex gap-4 items-start mb-4">
+      <div class="text-5xl" id="cardEmoji">🃏</div>
+      <div>
+        <div class="text-xs text-gray-500 mb-0.5">カード</div>
+        <div id="cardName" class="text-xl font-bold text-yellow-300"></div>
+        <div id="cardNum" class="text-xs text-gray-500"></div>
+      </div>
+      <div class="ml-auto text-center">
+        <div id="diceNum" class="text-4xl font-black text-purple-300"></div>
+        <div class="text-xs text-gray-500">d20</div>
+      </div>
+    </div>
+    <div class="bg-gray-900 rounded-lg p-3 mb-3">
+      <div class="text-xs text-purple-400 mb-1">📖 リーディング</div>
+      <div id="readingText" class="text-sm text-gray-200 leading-relaxed"></div>
+    </div>
+    <div class="bg-gray-900 rounded-lg p-3">
+      <div class="text-xs text-yellow-500 mb-1">✨ ダイス補正メッセージ</div>
+      <div id="diceMsg" class="text-sm text-yellow-200"></div>
+    </div>
+  </div>
+
+  <div id="historySection" class="hidden bg-gray-800 rounded-xl p-5">
+    <div class="flex justify-between items-center mb-3">
+      <h2 class="text-sm font-bold text-gray-400">📜 リーディング履歴（最新3件）</h2>
+      <button onclick="clearHistory()" class="text-xs text-red-400 hover:text-red-300" aria-label="履歴を消去">消去</button>
+    </div>
+    <div id="historyList" class="space-y-2"></div>
+  </div>
+</div>
+
+<script>
+const ARCANA = [
+  {num:0,  name:'愚者',    emoji:'🌟', keyword:'自由・新出発・冒険'},
+  {num:1,  name:'魔術師',  emoji:'🪄', keyword:'意志・創造・実行力'},
+  {num:2,  name:'女教皇',  emoji:'📿', keyword:'直感・内省・神秘'},
+  {num:3,  name:'女帝',    emoji:'🌸', keyword:'豊穣・愛・創造性'},
+  {num:4,  name:'皇帝',    emoji:'👑', keyword:'権威・秩序・安定'},
+  {num:5,  name:'法王',    emoji:'⛪', keyword:'信念・導き・伝統'},
+  {num:6,  name:'恋人',    emoji:'💑', keyword:'選択・調和・愛'},
+  {num:7,  name:'戦車',    emoji:'⚔️', keyword:'勝利・意志・前進'},
+  {num:8,  name:'力',      emoji:'🦁', keyword:'勇気・忍耐・制御'},
+  {num:9,  name:'隠者',    emoji:'🕯️', keyword:'内省・孤独・知恵'},
+  {num:10, name:'運命の輪',emoji:'☸️', keyword:'転換・チャンス・変化'},
+  {num:11, name:'正義',    emoji:'⚖️', keyword:'公正・真実・均衡'},
+  {num:12, name:'吊られた男',emoji:'🔄',keyword:'犠牲・待機・視点転換'},
+  {num:13, name:'死神',    emoji:'🌙', keyword:'終わり・変容・再生'},
+  {num:14, name:'節制',    emoji:'🌊', keyword:'調和・バランス・統合'},
+  {num:15, name:'悪魔',    emoji:'🔥', keyword:'欲望・束縛・執着'},
+  {num:16, name:'塔',      emoji:'⚡', keyword:'崩壊・啓示・激変'},
+  {num:17, name:'星',      emoji:'💫', keyword:'希望・癒し・インスピレーション'},
+  {num:18, name:'月',      emoji:'🌕', keyword:'幻想・不安・潜在意識'},
+  {num:19, name:'太陽',    emoji:'☀️', keyword:'成功・喜び・活力'},
+  {num:20, name:'審判',    emoji:'🎺', keyword:'復活・覚醒・評価'},
+  {num:21, name:'世界',    emoji:'🌍', keyword:'完成・達成・統合'},
+];
+
+const THEMES = {
+  energy: {
+    label:'今日のエネルギー',
+    messages: [
+      'あなたの内なる力が今日一日を支えています。',
+      '今日は感情の波に乗り、流れに任せることで好機が訪れます。',
+      'エネルギーの焦点を絞り、一点集中で動くことが吉。',
+      '周囲との調和があなたのエネルギーを最大化します。',
+      '今日は休息も行動の一つ。充電することで明日への準備を。',
+    ]
+  },
+  work: {
+    label:'仕事・キャリア',
+    messages: [
+      '新しいプロジェクトへの挑戦が、想定外の成果をもたらします。',
+      '信頼できる仲間と協力することで、目標が現実になります。',
+      '今は計画を見直し、基盤を固める時です。急がず着実に。',
+      '隠れた才能が職場で認められるタイミングが近づいています。',
+      '完璧を求めすぎず、まずは動き出すことが突破口になります。',
+    ]
+  },
+  love: {
+    label:'恋愛・人間関係',
+    messages: [
+      '心を開いて伝えることで、誤解が解け関係が深まります。',
+      '自分を大切にすることが、パートナーへの愛の源泉になります。',
+      '新しい出会いの予感。日常の小さな変化を見逃さずに。',
+      '過去の縁が再び動き出す時。受け入れる準備をしておいて。',
+      '相手の言葉より行動に注目することで本質が見えてきます。',
+    ]
+  },
+  challenge: {
+    label:'課題・乗り越えるべき壁',
+    messages: [
+      'その壁は実は自分自身が作ったものかもしれません。視点を変えて。',
+      '今の困難は必要な試練です。乗り越えた先に大きな成長が待っています。',
+      '助けを求める勇気が、解決への最短ルートになります。',
+      '焦らず一歩ずつ。小さな前進が積み重なって壁を崩します。',
+      '逃げることも選択肢の一つ。戦略的撤退は賢明な判断です。',
+    ]
+  }
+};
+
+const DICE_MODIFIERS = [
+  '運命はあなたに味方しています（d20=最高値付近）',
+  '試練と成長が同時にやってきます',
+  '今は種を蒔く時。収穫は後から訪れます',
+  '大きなエネルギーが動いています',
+  '静かな確信があなたを導きます',
+  '変化を恐れずに受け入れましょう',
+  '内なる知恵を信じてください',
+  '人とのつながりが鍵を握っています',
+  'タイミングを見極めることが重要です',
+  'シンプルさの中に答えがあります',
+];
+
+function doReading() {
+  const btn = document.getElementById('shakeBtn');
+  btn.classList.add('shake');
+  setTimeout(() => btn.classList.remove('shake'), 700);
+
+  const cardIdx = Math.floor(Math.random() * ARCANA.length);
+  const card = ARCANA[cardIdx];
+  const dice = Math.floor(Math.random() * 20) + 1;
+  const theme = document.getElementById('theme').value;
+  const themeData = THEMES[theme];
+  const msg = themeData.messages[Math.floor(Math.random() * themeData.messages.length)];
+  const diceMsg = DICE_MODIFIERS[Math.floor(Math.random() * DICE_MODIFIERS.length)];
+
+  document.getElementById('cardEmoji').textContent = card.emoji;
+  document.getElementById('cardName').textContent = card.name;
+  document.getElementById('cardNum').textContent = 'アルカナ No.' + card.num + ' ｜ ' + card.keyword;
+  document.getElementById('diceNum').textContent = dice;
+
+  const readingEl = document.getElementById('readingText');
+  readingEl.textContent = '【' + themeData.label + '】' + msg;
+
+  const diceMsgEl = document.getElementById('diceMsg');
+  diceMsgEl.textContent = 'd20=' + dice + '：' + (dice >= 15 ? '強い追い風！' : dice >= 8 ? '通常の流れ。' : '慎重に進めて。') + ' ' + diceMsg;
+
+  document.getElementById('resultCard').classList.remove('hidden');
+
+  saveHistory({
+    card: card.name,
+    emoji: card.emoji,
+    dice: dice,
+    theme: themeData.label,
+    msg: msg.substring(0, 30) + '...',
+    date: new Date().toLocaleString('ja-JP')
+  });
+  renderHistory();
+}
+
+function saveHistory(entry) {
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem('tarotHistory') || '[]'); } catch(e) {}
+  history.unshift(entry);
+  history = history.slice(0, 3);
+  try { localStorage.setItem('tarotHistory', JSON.stringify(history)); } catch(e) {}
+}
+
+function renderHistory() {
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem('tarotHistory') || '[]'); } catch(e) {}
+  if (history.length === 0) return;
+
+  document.getElementById('historySection').classList.remove('hidden');
+  const listEl = document.getElementById('historyList');
+  listEl.innerHTML = '';
+  history.forEach(h => {
+    const div = document.createElement('div');
+    div.className = 'bg-gray-900 rounded-lg p-3 text-xs';
+    const line1 = document.createElement('div');
+    line1.className = 'flex justify-between text-gray-400 mb-1';
+    const dateSpan = document.createElement('span');
+    dateSpan.textContent = h.date;
+    const themeSpan = document.createElement('span');
+    themeSpan.textContent = h.theme;
+    line1.appendChild(dateSpan);
+    line1.appendChild(themeSpan);
+
+    const line2 = document.createElement('div');
+    line2.className = 'flex items-center gap-2';
+    const emojiSpan = document.createElement('span');
+    emojiSpan.textContent = h.emoji;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'font-bold text-yellow-300';
+    nameSpan.textContent = h.card;
+    const diceSpan = document.createElement('span');
+    diceSpan.className = 'text-purple-300';
+    diceSpan.textContent = 'd20=' + h.dice;
+    const msgSpan = document.createElement('span');
+    msgSpan.className = 'text-gray-400';
+    msgSpan.textContent = h.msg;
+    line2.appendChild(emojiSpan);
+    line2.appendChild(nameSpan);
+    line2.appendChild(diceSpan);
+
+    div.appendChild(line1);
+    div.appendChild(line2);
+    const line3 = document.createElement('div');
+    line3.className = 'text-gray-500 mt-1';
+    line3.textContent = h.msg;
+    div.appendChild(line3);
+    listEl.appendChild(div);
+  });
+}
+
+function clearHistory() {
+  try { localStorage.removeItem('tarotHistory'); } catch(e) {}
+  document.getElementById('historySection').classList.add('hidden');
+}
+
+renderHistory();
+</script>
+</body>
+</html>
